@@ -21,6 +21,8 @@ import org.terasology.engine.rendering.dag.dependencyConnections.BufferPairConne
 import org.terasology.engine.rendering.dag.nodes.RefractiveReflectiveBlocksNodeProxy;
 import org.terasology.engine.rendering.dag.stateChanges.BindFbo;
 import org.terasology.engine.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.engine.rendering.dag.stateChanges.SetSphereProjection;
+import org.terasology.engine.rendering.sphere.SphereProjection;
 import org.terasology.engine.rendering.dag.stateChanges.SetInputTexture2D;
 import org.terasology.engine.rendering.dag.stateChanges.SetInputTextureFromFbo;
 import org.terasology.engine.rendering.opengl.FBO;
@@ -84,6 +86,12 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
     public static float waterOffsetY;
 
     private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn("CoreRendering:chunk");
+
+    /**
+     * Texture unit for the projection table. The chunk material takes zero through seven
+     * in the refractive pass, so this one starts above them.
+     */
+    private static final int SPHERE_TABLE_SLOT = 8;
 
     private RenderQueuesHelper renderQueues;
     private WorldRenderer worldRenderer;
@@ -187,6 +195,11 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
 
         addDesiredStateChange(new BindFbo(refractiveReflectiveFbo));
         addDesiredStateChange(new EnableMaterial(CHUNK_MATERIAL_URN));
+        // A world whose geometry is not the grid it is stored in hands the shader its projection
+        // table here. Absent one, nothing is added and the vertex keeps its plain transform.
+        context.getMaybe(SphereProjection.class).ifPresent(projection ->
+                addDesiredStateChange(new SetSphereProjection(SPHERE_TABLE_SLOT, projection,
+                        CHUNK_MATERIAL_URN, activeCamera::getPosition)));
         int textureSlot = 0;
         addDesiredStateChange(new SetInputTexture2D(textureSlot++, "engine:terrain", CHUNK_MATERIAL_URN, "textureAtlas"));
         addDesiredStateChange(new SetInputTexture2D(textureSlot++, "engine:effects", CHUNK_MATERIAL_URN, "textureEffects"));

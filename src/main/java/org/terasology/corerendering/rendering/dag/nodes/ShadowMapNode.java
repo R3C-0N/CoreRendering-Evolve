@@ -19,6 +19,8 @@ import org.terasology.engine.rendering.dag.ConditionDependentNode;
 import org.terasology.engine.rendering.dag.stateChanges.BindFbo;
 import org.terasology.engine.rendering.dag.stateChanges.EnableFaceCulling;
 import org.terasology.engine.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.engine.rendering.dag.stateChanges.SetSphereProjection;
+import org.terasology.engine.rendering.sphere.SphereProjection;
 import org.terasology.engine.rendering.dag.stateChanges.SetFacesToCull;
 import org.terasology.engine.rendering.dag.stateChanges.SetViewportToSizeOf;
 import org.terasology.engine.rendering.opengl.FBO;
@@ -50,6 +52,12 @@ import static org.terasology.engine.rendering.primitives.ChunkMesh.RenderPhase.O
 public class ShadowMapNode extends ConditionDependentNode implements PropertyChangeListener {
     public static final SimpleUri SHADOW_MAP_FBO_URI = new SimpleUri("engine:fbo.sceneShadowMap");
     private static final ResourceUrn SHADOW_MAP_MATERIAL_URN = new ResourceUrn("CoreRendering:shadowMap");
+
+    /**
+     * Texture unit for the projection table. The chunk material takes zero through seven
+     * in the refractive pass, so this one starts above them.
+     */
+    private static final int SPHERE_TABLE_SLOT = 8;
     private static final int SHADOW_FRUSTUM_BOUNDS = 200;
     private static final float STEP_SIZE = 50f;
     private Material shadowMapMaterial;
@@ -96,6 +104,11 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
         addDesiredStateChange(new BindFbo(shadowMapFbo));
         addDesiredStateChange(new SetViewportToSizeOf(shadowMapFbo));
         addDesiredStateChange(new EnableMaterial(SHADOW_MAP_MATERIAL_URN));
+        // A world whose geometry is not the grid it is stored in hands the shader its projection
+        // table here. Absent one, nothing is added and the vertex keeps its plain transform.
+        context.getMaybe(SphereProjection.class).ifPresent(projection ->
+                addDesiredStateChange(new SetSphereProjection(SPHERE_TABLE_SLOT, projection,
+                        SHADOW_MAP_MATERIAL_URN, shadowMapCamera::getPosition)));
 
         addDesiredStateChange(new EnableFaceCulling());
     }
@@ -174,6 +187,9 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
                     model.setTranslation(chunk.getRenderPosition().sub(cameraPosition));
                     modelViewMatrix.set(shadowMapCamera.getViewMatrix()).mul(model);
                     shadowMapMaterial.setMatrix4("modelViewMatrix", modelViewMatrix, true);
+                // The shadow pass does not go through ChunkMesh.updateMaterial, so the chunk's own
+                // origin has to be handed over here. Without it a curved world casts flat shadows.
+                shadowMapMaterial.setFloat3("chunkPositionWorld", chunk.getRenderPosition(), true);
                     numberOfRenderedTriangles += chunk.getMesh().render(OPAQUE);
 
                 } else {

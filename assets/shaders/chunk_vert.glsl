@@ -125,7 +125,10 @@ void main() {
     v_ambientLight = in_ambientlight;
     v_blockHint = in_flags;
     v_colorOffset = colorOffset;
-    vertexViewPos = modelViewMatrix * vec4(in_vert, 1.0);
+    // On a flat world this is exactly modelViewMatrix * vec4(in_vert, 1.0); on a curved one the
+    // vertex is placed where the world actually is. vertexWorldPos stays flat on purpose: the
+    // waving grass, the water waves and the noise downstream all want grid coordinates.
+    vertexViewPos = sphereViewPos(in_vert, chunkPositionWorld.xyz, modelViewMatrix);
     vertexWorldPos = in_vert + chunkPositionWorld.xyz;
 
     if (in_frames > 0) {
@@ -140,10 +143,13 @@ void main() {
 
     isUpside = in_normal.y > 0.9 ? 1 : 0;
 
+    // The local frame turns with distance on a curved world, by d over R: eleven degrees at a
+    // thousand blocks. Left alone, the far ground would be lit as though it were flat.
+    mat3 surfaceFrame = sphereEnabled == 0 ? mat3(1.0) : sphereFrame(in_vert + chunkPositionWorld.xyz);
 #if defined (NORMAL_MAPPING)
-    worldSpaceNormal = in_normal;
+    worldSpaceNormal = surfaceFrame * in_normal;
 #endif
-    normal = normalMatrix * in_normal;
+    normal = normalMatrix * surfaceFrame * in_normal;
 
 
 #ifdef FLICKERING_LIGHT

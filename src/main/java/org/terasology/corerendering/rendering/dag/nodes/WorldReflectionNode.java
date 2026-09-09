@@ -18,6 +18,8 @@ import org.terasology.engine.rendering.dag.StateChange;
 import org.terasology.engine.rendering.dag.stateChanges.BindFbo;
 import org.terasology.engine.rendering.dag.stateChanges.EnableFaceCulling;
 import org.terasology.engine.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.engine.rendering.dag.stateChanges.SetSphereProjection;
+import org.terasology.engine.rendering.sphere.SphereProjection;
 import org.terasology.engine.rendering.dag.stateChanges.ReflectedCamera;
 import org.terasology.engine.rendering.dag.stateChanges.SetFacesToCull;
 import org.terasology.engine.rendering.dag.stateChanges.SetInputTexture2D;
@@ -52,6 +54,12 @@ import static org.terasology.engine.rendering.primitives.ChunkMesh.RenderPhase.O
  */
 public class WorldReflectionNode extends ConditionDependentNode {
     private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn("CoreRendering:chunk");
+
+    /**
+     * Texture unit for the projection table. The chunk material takes zero through seven
+     * in the refractive pass, so this one starts above them.
+     */
+    private static final int SPHERE_TABLE_SLOT = 8;
 
     private RenderQueuesHelper renderQueues;
     private BackdropProvider backdropProvider;
@@ -107,6 +115,11 @@ public class WorldReflectionNode extends ConditionDependentNode {
         addDesiredStateChange(new EnableFaceCulling());
         addDesiredStateChange(new SetFacesToCull(GL_FRONT));
         addDesiredStateChange(new EnableMaterial(CHUNK_MATERIAL_URN));
+        // A world whose geometry is not the grid it is stored in hands the shader its projection
+        // table here. Absent one, nothing is added and the vertex keeps its plain transform.
+        context.getMaybe(SphereProjection.class).ifPresent(projection ->
+                addDesiredStateChange(new SetSphereProjection(SPHERE_TABLE_SLOT, projection,
+                        CHUNK_MATERIAL_URN, activeCamera::getPosition)));
 
         // TODO: improve EnableMaterial to take advantage of shader feature bitmasks.
         chunkMaterial = getMaterial(CHUNK_MATERIAL_URN);
