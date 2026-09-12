@@ -54,21 +54,28 @@ public class LightShaftsNode extends ConditionDependentNode {
     private float exposure;
     private Mesh renderQuad;
 
+    // The shafts are added to the scene unclamped, so their strength is the sum of
+    // LIGHT_SHAFT_SAMPLES samples times weight, decay and exposure. The stock values
+    // (weight 8, decay 0.95, exposure 0.0075) sum to about 1.15 times the sampled sky,
+    // which doubles the sky's brightness and whites out everything near the sun.
+    // These sum to about 0.44 instead: visible streaks, a readable scene behind them.
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 10.0f)
-    private float density = 1.0f;
+    private float density = 0.85f;
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 0.01f)
-    private float exposureDay = 0.0075f;
+    private float exposureDay = 0.0050f;
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 0.01f)
-    private float exposureNight = 0.00375f;
+    private float exposureNight = 0.0025f;
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 10.0f)
-    private float weight = 8.0f;
+    private float weight = 7.0f;
+    // A shorter decay keeps a sample's contribution close to the sun, which is what
+    // makes a shaft read as a beam rather than as a wash over the whole frame.
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 0.99f)
-    private float decay = 0.95f;
+    private float decay = 0.92f;
 
     @SuppressWarnings("FieldCanBeLocal")
     private Vector3f sunDirection;

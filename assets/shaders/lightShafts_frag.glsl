@@ -41,6 +41,12 @@ void main() {
             illuminationDecay *= decay;
         }
 
-        outExposure.rgb *= exposure * lightDirDotViewDir;
+        // lightDirDotViewDir is the raw cosine, so any sun in front of the camera -
+        // a full 90 degree cone - got shafts at nearly full strength. Squaring it
+        // still confines them to the neighbourhood of the sun, as crepuscular rays
+        // are, while keeping them readable off-axis: cubed, they vanished as soon
+        // as the sun left the middle of the screen.
+        float aim = clamp(lightDirDotViewDir, 0.0, 1.0);
+        outExposure.rgb *= exposure * aim * aim;
     }
 }
