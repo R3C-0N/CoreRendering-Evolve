@@ -243,7 +243,8 @@ void main() {
             color += mix(refractionColor * (1.0 - waterTint) +  waterTint * litWaterTint,
                     reflectionColor * (1.0 - waterTint) + waterTint * litWaterTint, f);
         } else {
-             color += refractionColor * (1.0 - waterTint) +  waterTint * litWaterTint;
+            // Seen from below, whatever lies above the surface takes the colour of the water.
+            color += (refractionColor * (1.0 - waterTint) +  waterTint * litWaterTint) * vec4(WATER_COLOR_SWIMMING);
         }
 
         color.a = 1.0;
