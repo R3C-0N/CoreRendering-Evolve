@@ -87,19 +87,20 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
     public static float waterOffsetY;
 
     // The swell is faded out with the depth under the surface: see WaterDepthField for where the number comes
-    // from and chunk_vert for what is done with it.
+    // from and chunk_vert for what is done with it. Static because UnderwaterHelper redraws the same surface on the
+    // CPU to decide whether the camera is under it.
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 1.0f, max = 28.0f)
-    private float swellFullLevel = 28.0f;
+    public static float swellFullLevel = 28.0f;
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 0.1f)
-    private float shallowSwellSpeed = 0.018f;
+    public static float shallowSwellSpeed = 0.018f;
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 0.5f)
-    private float shallowSwellSize = 0.045f;
+    public static float shallowSwellSize = 0.045f;
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 1.0f)
-    private float shallowSwellScale = 0.09f;
+    public static float shallowSwellScale = 0.09f;
 
     private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn("CoreRendering:chunk");
 
@@ -133,7 +134,7 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
 
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 2.0f)
-    private float waveOverallScale = 1.0f;
+    public static float waveOverallScale = 1.0f;
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 1.0f)
     private float waterRefraction = 0.04f;
