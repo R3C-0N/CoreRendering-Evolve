@@ -28,6 +28,7 @@ import org.terasology.engine.rendering.dag.stateChanges.SetInputTextureFromFbo;
 import org.terasology.engine.rendering.opengl.FBO;
 import org.terasology.engine.rendering.opengl.fbms.DisplayResolutionDependentFbo;
 import org.terasology.engine.rendering.primitives.ChunkMesh;
+import org.terasology.engine.rendering.primitives.WaterDepthField;
 import org.terasology.engine.rendering.world.RenderQueuesHelper;
 import org.terasology.engine.rendering.world.WorldRenderer;
 import org.terasology.engine.world.WorldProvider;
@@ -84,6 +85,21 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 5.0f)
     public static float waterOffsetY;
+
+    // The swell is faded out with the depth under the surface: see WaterDepthField for where the number comes
+    // from and chunk_vert for what is done with it.
+    @SuppressWarnings("FieldCanBeLocal")
+    @Range(min = 1.0f, max = 28.0f)
+    private float swellFullLevel = 28.0f;
+    @SuppressWarnings("FieldCanBeLocal")
+    @Range(min = 0.0f, max = 0.1f)
+    private float shallowSwellSpeed = 0.018f;
+    @SuppressWarnings("FieldCanBeLocal")
+    @Range(min = 0.0f, max = 0.5f)
+    private float shallowSwellSize = 0.045f;
+    @SuppressWarnings("FieldCanBeLocal")
+    @Range(min = 0.0f, max = 1.0f)
+    private float shallowSwellScale = 0.09f;
 
     private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn("CoreRendering:chunk");
 
@@ -281,6 +297,12 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
             chunkMaterial.setFloat("waveIntensity", waveIntensity, true);
             chunkMaterial.setFloat("waterOffsetY", waterOffsetY, true);
             chunkMaterial.setFloat("waveOverallScale", waveOverallScale, true);
+
+            chunkMaterial.setFloat("waterDepthRange", WaterDepthField.RANGE, true);
+            chunkMaterial.setFloat("swellFullLevel", swellFullLevel, true);
+            chunkMaterial.setFloat("shallowSwellSpeed", shallowSwellSpeed, true);
+            chunkMaterial.setFloat("shallowSwellSize", shallowSwellSize, true);
+            chunkMaterial.setFloat("shallowSwellScale", shallowSwellScale, true);
         }
 
         // Actual Node Processing

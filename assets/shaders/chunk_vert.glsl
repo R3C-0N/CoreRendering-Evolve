@@ -19,6 +19,25 @@ uniform float waveSpeed;
 uniform float waterOffsetY;
 uniform float waveOverallScale;
 
+// -- Depth -------------------------------------------------------------------------------------
+//
+// The swell above is a function of the world position alone, so it travels the same eight tenths of a block in the
+// open sea and in a hand of water over the sand. A wave carries the column of water beneath it: where the column
+// runs out the wave has to run out with it, or the beach heaves like the ocean. Every water surface vertex therefore
+// carries the depth under it, measured straight down by WaterDepthField, and the swell is faded out with it.
+//
+// Both the height and the normal are faded, and that matters: a surface that is flat but still lit as though it
+// were rolling reads as rolling.
+// Calm water is not the swell made small. The sixteen octaves all turn at about the same rate, so scaling them
+// down leaves water that flickers quietly instead of water that is still; and the rate cannot be slowed with the
+// depth either, since a speed that varies across the ground multiplies the time into the phase gradient and the
+// surface tears. So the shallows get their own wave: two octaves, long and slow, crossfaded against the swell.
+uniform float waterDepthRange;     // levels the depth byte spans; must match WaterDepthField.RANGE
+uniform float swellFullLevel;      // level at which the swell is at its full, open sea strength
+uniform float shallowSwellSpeed;   // pace of the calm water, against waveSpeed for the open sea
+uniform float shallowSwellSize;    // its spatial frequency, so the inverse of its wavelength
+uniform float shallowSwellScale;   // how far it travels, in blocks, crest to trough
+
 const vec2[] waveDirections = vec2[](
     vec2(-0.613392, 0.617481),
     vec2(0.170019, -0.040254),
@@ -56,12 +75,28 @@ float calcWaterHeightAtOffset(vec2 worldPos) {
     return (height / float(OCEAN_OCTAVES)) * waveOverallScale;
 }
 
-vec4 calcWaterNormalAndOffset(vec2 worldPosRaw) {
-    float s11 = calcWaterHeightAtOffset(worldPosRaw.xy);
-    float s01 = calcWaterHeightAtOffset(worldPosRaw.xy + normalDiffOffset.xy);
-    float s21 = calcWaterHeightAtOffset(worldPosRaw.xy + normalDiffOffset.zy);
-    float s10 = calcWaterHeightAtOffset(worldPosRaw.xy + normalDiffOffset.yx);
-    float s12 = calcWaterHeightAtOffset(worldPosRaw.xy + normalDiffOffset.yz);
+// The calm of the shallows: two long slow octaves, crossing each other so the surface breathes rather than beats.
+float calcShallowHeightAtOffset(vec2 worldPos) {
+    float a = smoothTriangleWave(timeToTick(time, shallowSwellSpeed)
+        + (worldPos.x * 0.62 + worldPos.y * 0.78) * shallowSwellSize);
+    float b = smoothTriangleWave(timeToTick(time, shallowSwellSpeed * 0.63)
+        + (worldPos.x * -0.81 + worldPos.y * 0.59) * shallowSwellSize);
+    return (a + b) * 0.25 * shallowSwellScale;
+}
+
+// What the water actually does here: the swell out at sea, the calm in the shallows, and the crossfade between.
+// The weight is taken as constant over the block-wide neighbourhood the normal is built from, which it very nearly
+// is — the level climbs at most one per block, by construction.
+float calcHeightAtOffset(vec2 worldPos, float swellWeight) {
+    return mix(calcShallowHeightAtOffset(worldPos), calcWaterHeightAtOffset(worldPos), swellWeight);
+}
+
+vec4 calcWaterNormalAndOffset(vec2 worldPosRaw, float swellWeight) {
+    float s11 = calcHeightAtOffset(worldPosRaw.xy, swellWeight);
+    float s01 = calcHeightAtOffset(worldPosRaw.xy + normalDiffOffset.xy, swellWeight);
+    float s21 = calcHeightAtOffset(worldPosRaw.xy + normalDiffOffset.zy, swellWeight);
+    float s10 = calcHeightAtOffset(worldPosRaw.xy + normalDiffOffset.yx, swellWeight);
+    float s12 = calcHeightAtOffset(worldPosRaw.xy + normalDiffOffset.yz, swellWeight);
 
     vec3 va = normalize(vec3(normalDiffSize.x, s21-s01, normalDiffSize.y));
     vec3 vb = normalize(vec3(normalDiffSize.y, s10-s12, -normalDiffSize.x));
@@ -116,6 +151,10 @@ layout (location = 6) in float in_blocklight;
 layout (location = 7) in float in_ambientlight;
 
 layout (location = 8) in vec4 colorOffset;
+
+// The depth under a water surface vertex, nought to a hundred and twenty seven over waterDepthRange blocks, and
+// nought on anything that is not a water surface.
+layout (location = 9) in float in_waterDepth;
 
 void main() {
 
@@ -178,7 +217,14 @@ void main() {
 #if defined (FEATURE_REFRACTIVE_PASS)
     #if defined (ANIMATED_WATER)
         if (v_blockHint == BLOCK_HINT_WATER_SURFACE && isUpside == 1) {
-            vec4 normalAndOffset = calcWaterNormalAndOffset(vertexWorldPos.xz);
+            // From the calm of the waterline to the whole swell out at sea, over the levels between. The level is
+            // built so that it climbs one at a time, so this ramp is spread over the ground whatever the bottom does.
+            float depthLevel = in_waterDepth / 127.0 * waterDepthRange;
+            float swellWeight = smoothstep(1.0, max(swellFullLevel, 1.5), depthLevel);
+
+            // The normal comes out of the same crossfade, so flat water is also lit as flat water. Lit as though it
+            // were rolling, it reads as rolling however little it moves.
+            vec4 normalAndOffset = calcWaterNormalAndOffset(vertexWorldPos.xz, swellWeight);
 
             waterNormalViewSpace = normalMatrix * normalAndOffset.xyz;
             vertexViewPos += modelViewMatrix[1] * (normalAndOffset.w + waterOffsetY);
