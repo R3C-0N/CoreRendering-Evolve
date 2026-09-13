@@ -50,6 +50,9 @@ uniform vec3 volumetricFogSettings;
 uniform vec3 fogWorldPosition;
 #endif
 
+uniform vec3 underwaterFogColor;
+uniform float underwaterFogDensity;
+
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outNormal;
 layout(location = 2) out vec4 outLight;
@@ -164,6 +167,15 @@ void main() {
     colorOpaque.rgb = mix(colorOpaque.rgb, volFogColor, volumetricFogValue);
     colorTransparent.rgb = mix(colorTransparent.rgb, volFogColor, volumetricFogValue);
 #endif
+
+    if (swimming) {
+        // Light is lost along the path through the water. The water surface is in the depth buffer too, so looking
+        // up the fog stops where the water does.
+        float underwaterDistance = linDepth(depthOpaque) * zFar;
+        float underwaterFog = 1.0 - exp(-underwaterFogDensity * underwaterDistance);
+        colorOpaque.rgb = mix(colorOpaque.rgb, underwaterFogColor, underwaterFog);
+        colorTransparent.rgb = mix(colorTransparent.rgb, underwaterFogColor, underwaterFog);
+    }
 
     float fade = clamp(1.0 - colorTransparent.a, 0.0, 1.0);
     vec4 color = mix(colorTransparent, colorOpaque, fade);

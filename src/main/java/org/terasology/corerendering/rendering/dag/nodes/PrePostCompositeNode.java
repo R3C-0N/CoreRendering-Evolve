@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.terasology.corerendering.rendering.dag.nodes;
 
+import org.joml.Vector3f;
+import org.terasology.corerendering.rendering.utils.UnderwaterHelper;
 import org.terasology.engine.config.Config;
 import org.terasology.engine.config.RenderingConfig;
 import org.terasology.engine.context.Context;
 import org.terasology.engine.monitoring.PerformanceMonitor;
 import org.terasology.engine.rendering.assets.material.Material;
 import org.terasology.engine.rendering.assets.mesh.Mesh;
+import org.terasology.engine.rendering.backdrop.BackdropProvider;
 import org.terasology.engine.rendering.cameras.Camera;
 import org.terasology.engine.rendering.dag.AbstractNode;
 import org.terasology.engine.rendering.dag.StateChange;
@@ -20,6 +23,8 @@ import org.terasology.engine.rendering.opengl.FBO;
 import org.terasology.engine.rendering.opengl.fbms.DisplayResolutionDependentFbo;
 import org.terasology.engine.rendering.world.WorldRenderer;
 import org.terasology.engine.utilities.Assets;
+import org.terasology.engine.world.WorldProvider;
+import org.terasology.engine.world.chunks.Chunks;
 import org.terasology.gestalt.assets.ResourceUrn;
 import org.terasology.gestalt.naming.Name;
 import org.terasology.nui.properties.Range;
@@ -50,6 +55,8 @@ public class PrePostCompositeNode extends AbstractNode implements PropertyChange
     private RenderingConfig renderingConfig;
     private WorldRenderer worldRenderer;
     private Camera activeCamera;
+    private WorldProvider worldProvider;
+    private BackdropProvider backdropProvider;
     private DisplayResolutionDependentFbo displayResolutionDependentFbo;
 
     private Material prePostMaterial;
@@ -98,6 +105,17 @@ public class PrePostCompositeNode extends AbstractNode implements PropertyChange
     @Range(min = -0.1f, max = 0.1f)
     private float volumetricFogHeightFalloff = -0.01f;
 
+    // Underwater, light is lost at this rate per block to the colour of the water under full daylight. The colour
+    // is dimmed with the light that reaches the camera, so a flooded cave or a night sea is not bright blue.
+    @SuppressWarnings("FieldCanBeLocal")
+    @Range(min = 0.0f, max = 0.5f)
+    private float underwaterFogDensity = 0.06f;
+    @SuppressWarnings("FieldCanBeLocal")
+    @Range(min = 0.0f, max = 1.0f)
+    private float underwaterFogMinimumBrightness = 0.02f;
+    private final Vector3f underwaterFogDaylightColor = new Vector3f(0.1f, 0.41f, 0.627f);
+    private final Vector3f underwaterFogColor = new Vector3f();
+
     private Mesh renderQuad;
 
     public PrePostCompositeNode(String nodeUri, Name providingModule, Context context) {
@@ -105,6 +123,8 @@ public class PrePostCompositeNode extends AbstractNode implements PropertyChange
 
         worldRenderer = context.get(WorldRenderer.class);
         activeCamera = worldRenderer.getActiveCamera();
+        worldProvider = context.get(WorldProvider.class);
+        backdropProvider = context.get(BackdropProvider.class);
         addOutputBufferPairConnection(1);
 
         this.renderQuad = Assets.get(new ResourceUrn("engine:ScreenQuad"), Mesh.class)
@@ -219,6 +239,15 @@ public class PrePostCompositeNode extends AbstractNode implements PropertyChange
 
         if (hazeIsEnabled) {
             prePostMaterial.setFloat4("skyInscatteringSettingsFrag", 0, hazeStrength, hazeLength, hazeThreshold, true);
+        }
+
+        boolean underwater = UnderwaterHelper.isUnderwater(activeCamera.getPosition(), worldProvider, renderingConfig);
+        prePostMaterial.setFloat("swimming", underwater ? 1.0f : 0.0f, true);
+        if (underwater) {
+            float sunlight = worldProvider.getSunlight(activeCamera.getPosition()) / (float) Chunks.MAX_SUNLIGHT;
+            float brightness = Math.max(backdropProvider.getDaylight() * sunlight, underwaterFogMinimumBrightness);
+            prePostMaterial.setFloat3("underwaterFogColor", underwaterFogDaylightColor.mul(brightness, underwaterFogColor), true);
+            prePostMaterial.setFloat("underwaterFogDensity", underwaterFogDensity, true);
         }
 
         // TODO: We never set the "fogWorldPosition" uniform in prePostComposite_frag.glsl . Either use it, or remove it.
