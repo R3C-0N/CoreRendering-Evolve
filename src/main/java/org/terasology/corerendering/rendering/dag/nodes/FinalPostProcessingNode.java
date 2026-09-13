@@ -3,6 +3,7 @@
 package org.terasology.corerendering.rendering.dag.nodes;
 
 import org.joml.Vector3f;
+import org.terasology.corerendering.rendering.utils.UnderwaterHelper;
 import org.terasology.engine.config.Config;
 import org.terasology.engine.config.RenderingConfig;
 import org.terasology.engine.context.Context;
@@ -33,6 +34,7 @@ import org.terasology.engine.rendering.world.WorldRenderer;
 import org.terasology.engine.utilities.Assets;
 import org.terasology.engine.utilities.random.FastRandom;
 import org.terasology.engine.utilities.random.Random;
+import org.terasology.engine.world.WorldProvider;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -65,6 +67,7 @@ public class FinalPostProcessingNode extends AbstractNode implements PropertyCha
 
     private final CameraTargetSystem cameraTargetSystem;
     private final Camera activeCamera;
+    private final WorldProvider worldProvider;
 
     @SuppressWarnings("FieldCanBeLocal")
     @Range(min = 0.0f, max = 1.0f)
@@ -93,6 +96,7 @@ public class FinalPostProcessingNode extends AbstractNode implements PropertyCha
         activeCamera = worldRenderer.getActiveCamera();
         screenGrabber = context.get(ScreenGrabber.class);
         cameraTargetSystem = context.get(CameraTargetSystem.class);
+        worldProvider = context.get(WorldProvider.class);
 
         postMaterial = getMaterial(POST_MATERIAL_URN);
 
@@ -154,6 +158,9 @@ public class FinalPostProcessingNode extends AbstractNode implements PropertyCha
         PerformanceMonitor.startActivity("rendering/" + getUri());
 
         postMaterial.setFloat("focalDistance", cameraTargetSystem.getFocalDistance(), true); //for use in DOF effect
+        // Underwater the whole view comes from the blurred buffer, see post_frag.
+        postMaterial.setFloat("swimming", UnderwaterHelper.isUnderwater(
+                activeCamera.getPosition(), worldProvider, renderingConfig) ? 1.0f : 0.0f, true);
 
         if (renderingConfig.isFilmGrain()) {
             postMaterial.setFloat("grainIntensity", filmGrainIntensity, true);
