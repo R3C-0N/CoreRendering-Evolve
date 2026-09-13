@@ -25,6 +25,7 @@ import org.terasology.engine.rendering.opengl.fbms.DisplayResolutionDependentFbo
 import org.terasology.engine.rendering.world.WorldRenderer;
 import org.terasology.engine.utilities.Assets;
 import org.terasology.engine.world.WorldProvider;
+import org.terasology.engine.world.block.Block;
 import org.terasology.gestalt.assets.ResourceUrn;
 import org.terasology.gestalt.naming.Name;
 import org.terasology.nui.properties.Range;
@@ -141,12 +142,16 @@ public class InitialPostProcessingNode extends AbstractNode implements PropertyC
 
         // Common Shader Parameters
 
-        initialPostMaterial.setFloat("swimming", UnderwaterHelper.isUnderwater(
-                activeCamera.getPosition(), worldProvider, renderingConfig) ? 1.0f : 0.0f, true);
+        Block liquid = UnderwaterHelper.liquidAtCamera(activeCamera.getPosition(), worldProvider, renderingConfig);
+        initialPostMaterial.setFloat("swimming", liquid != null ? 1.0f : 0.0f, true);
 
         // Shader Parameters
 
-        initialPostMaterial.setFloat3("inLiquidTint", worldProvider.getBlock(activeCamera.getPosition()).getTint(), true);
+        // The tint is read off the block the verdict came from, never off the camera position: under a wave crest
+        // that block is still air, and the tint of air is black.
+        if (liquid != null) {
+            initialPostMaterial.setFloat3("inLiquidTint", liquid.getTint(), true);
+        }
 
         if (bloomIsEnabled) {
             initialPostMaterial.setFloat("bloomFactor", bloomFactor, true);

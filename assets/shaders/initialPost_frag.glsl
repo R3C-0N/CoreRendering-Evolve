@@ -9,6 +9,7 @@ uniform sampler2D texBloom;
 #endif
 
 uniform sampler2D texScene;
+uniform vec3 inLiquidTint;
 
 #ifdef LIGHT_SHAFTS
 uniform sampler2D texLightShafts;
@@ -30,6 +31,13 @@ void main() {
     vec4 colorBloom = texture(texBloom, v_uv0.xy);
     color += colorBloom * bloomFactor;
 #endif
+
+    // Under a liquid, the light that reaches the eye has taken the liquid's colour. Only its hue: the exposure has
+    // already been measured, so a raw tint of a tenth would black the view out rather than colour it.
+    if (swimming) {
+        float strongest = max(max(inLiquidTint.r, inLiquidTint.g), max(inLiquidTint.b, 0.0001));
+        color.rgb *= inLiquidTint / strongest;
+    }
 
     outColor.rgba = color.rgba;
 }
