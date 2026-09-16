@@ -60,6 +60,11 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
     private static final int SPHERE_TABLE_SLOT = 8;
     private static final int SHADOW_FRUSTUM_BOUNDS = 200;
     private static final float STEP_SIZE = 50f;
+    /**
+     * However still the scene is, the map is drawn again at least this often: a safety net against anything that could
+     * change what it holds without changing the signature below.
+     */
+    private static final long FORCED_REDRAW_NANOS = 5_000_000_000L;
     private Material shadowMapMaterial;
 
     public Camera shadowMapCamera = new OrthographicCamera(-SHADOW_FRUSTUM_BOUNDS, SHADOW_FRUSTUM_BOUNDS, SHADOW_FRUSTUM_BOUNDS,
@@ -71,6 +76,15 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
 
     private Camera activeCamera;
     private double texelSize;
+
+    /** Where the map now in the buffer was drawn from. */
+    private final Vector3f drawnPosition = new Vector3f();
+    private final Vector3f drawnDirection = new Vector3f();
+    private long lastSignature;
+    private long lastDrawnAt;
+    private boolean everDrawn;
+    private boolean decided;
+    private boolean redraw;
 
     public ShadowMapNode(String nodeUri, Name providingModule, Context context) {
         super(nodeUri, providingModule, context);
@@ -134,12 +148,15 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
 
         switch (propertyName) {
             case RenderingConfig.DYNAMIC_SHADOWS:
+                everDrawn = false;
+                decided = false;
                 super.propertyChange(event);
                 break;
 
             case RenderingConfig.SHADOW_MAP_RESOLUTION:
                 int shadowMapResolution = (int) event.getNewValue();
                 texelSize = calculateTexelSize(shadowMapResolution);
+                everDrawn = false;
                 break;
 
             // default: no other cases are possible - see subscribe operations in initialize().
@@ -166,11 +183,11 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
         GL30.glPolygonOffset(0, 1);
 
         // TODO: remove this IF statement when VR is handled via parallel nodes, one per eye.
-        if (worldRenderer.isFirstRenderingStageForCurrentFrame()) {
+        if (worldRenderer.isFirstRenderingStageForCurrentFrame() && isRedrawNeeded()) {
             PerformanceMonitor.startActivity("rendering/" + getUri());
 
-            // Actual Node Processing
-            positionShadowMapCamera(); // TODO: extract these calculation into a separate node.
+            // Actual Node Processing. The camera was placed by isRedrawNeeded, which is also what decided that this
+            // frame draws at all; the buffer clearing node asks it first, and only clears what is about to be redrawn.
             shadowMapMaterial.setMatrix4("projectionMatrix", shadowMapCamera.getProjectionMatrix(), true);
 
             int numberOfRenderedTriangles = 0;
@@ -200,11 +217,66 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
             worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);
             worldRenderer.increaseNotReadyChunkCount(numberOfChunksThatAreNotReadyYet);
 
+            drawnPosition.set(shadowMapCamera.getPosition());
+            drawnDirection.set(shadowMapCamera.getViewingDirection());
+            lastDrawnAt = System.nanoTime();
+            everDrawn = true;
+
             PerformanceMonitor.endActivity();
         }
+        decided = false;
         GL30.glDisable(GL30.GL_POLYGON_OFFSET_FILL);
 
         GL30.glViewport(0, 0, renderingConfig.getWindowWidth(), renderingConfig.getWindowHeight());
+    }
+
+    /**
+     * Whether the shadow map has to be drawn again this frame, decided once and used by both the buffer clearing node
+     * and this one.
+     * <p>
+     * The map only changes when the light, the shadow camera or the chunks it holds change, yet it was cleared and
+     * drawn on every frame: 5 ms of a 33 ms frame on the reference machine, standing still. Placing the camera is what
+     * says whether anything moved, so it happens here; when nothing did, the camera goes back to where the map in the
+     * buffer was drawn from, so the lighting pass keeps sampling it correctly.
+     */
+    public boolean isRedrawNeeded() {
+        if (!decided) {
+            positionShadowMapCamera(); // TODO: extract these calculation into a separate node.
+            long signature = signature();
+            redraw = !everDrawn || signature != lastSignature
+                    || System.nanoTime() - lastDrawnAt > FORCED_REDRAW_NANOS;
+            if (redraw) {
+                lastSignature = signature;
+            } else {
+                shadowMapCamera.getPosition().set(drawnPosition);
+                shadowMapCamera.getViewingDirection().set(drawnDirection);
+                shadowMapCamera.updateMatrices();
+            }
+            decided = true;
+        }
+        return redraw;
+    }
+
+    /**
+     * What the map depends on: where it is seen from, how fine it is, and which chunk meshes go into it. Chunks are
+     * counted by identity, so a chunk that was meshed again brings a new mesh and a new signature.
+     */
+    private long signature() {
+        Vector3f position = shadowMapCamera.getPosition();
+        Vector3f direction = shadowMapCamera.getViewingDirection();
+        long hash = 17;
+        hash = hash * 31 + Float.floatToIntBits(position.x);
+        hash = hash * 31 + Float.floatToIntBits(position.y);
+        hash = hash * 31 + Float.floatToIntBits(position.z);
+        hash = hash * 31 + Float.floatToIntBits(direction.x);
+        hash = hash * 31 + Float.floatToIntBits(direction.y);
+        hash = hash * 31 + Float.floatToIntBits(direction.z);
+        hash = hash * 31 + renderingConfig.getShadowMapResolution();
+        long chunks = 0;
+        for (RenderableChunk chunk : renderQueues.chunksOpaqueShadow) {
+            chunks += 31L * System.identityHashCode(chunk) + System.identityHashCode(chunk.getMesh());
+        }
+        return hash * 31 + chunks;
     }
 
     private void positionShadowMapCamera() {

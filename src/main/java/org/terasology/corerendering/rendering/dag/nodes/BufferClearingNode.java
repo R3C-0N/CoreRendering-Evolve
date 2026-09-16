@@ -10,6 +10,8 @@ import org.terasology.engine.rendering.opengl.BaseFboManager;
 import org.terasology.engine.rendering.opengl.FBO;
 import org.terasology.engine.rendering.opengl.FboConfig;
 
+import java.util.function.BooleanSupplier;
+
 import static org.lwjgl.opengl.GL11.glClear;
 
 /**
@@ -22,6 +24,8 @@ import static org.lwjgl.opengl.GL11.glClear;
 public class BufferClearingNode extends AbstractNode {
     private int clearingMask;
     private FBO fbo;
+    /** Asked on every frame: a buffer kept from the previous frame must not be cleared. */
+    private BooleanSupplier gate = () -> true;
     /**
      * @deprecated
      * Constructs the node by requesting the creation (if necessary) of the FBO to be cleared
@@ -85,9 +89,21 @@ public class BufferClearingNode extends AbstractNode {
      * <p>
      * This method is executed within a NodeTask in the Render Tasklist.
      */
+    /**
+     * Lets the node that draws into the buffer decide, frame by frame, whether it is about to redraw it.
+     * <p>
+     * A node conditioned through {@code requiresCondition} is only re-examined when the task list is rebuilt, which is
+     * why the choice is made here instead.
+     */
+    public void setGate(BooleanSupplier clearWhen) {
+        this.gate = clearWhen;
+    }
+
     @Override
     public void process() {
-        glClear(clearingMask);
+        if (gate.getAsBoolean()) {
+            glClear(clearingMask);
+        }
     }
 
     private boolean validateArguments(FboConfig fboConfig, BaseFboManager fboManager, int clearingMask) {

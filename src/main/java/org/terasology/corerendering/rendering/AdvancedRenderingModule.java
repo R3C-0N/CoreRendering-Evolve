@@ -124,6 +124,9 @@ public class AdvancedRenderingModule extends ModuleRendering {
         renderGraph.addNode(shadowMapClearingNode);
 
         shadowMapNode = new ShadowMapNode("shadowMapNode", providingModule, context);
+        // The shadow map is kept from one frame to the next when nothing it holds has moved, so it is only cleared on
+        // the frames it is drawn again.
+        shadowMapClearingNode.setGate(shadowMapNode::isRedrawNeeded);
         renderGraph.connectFbo(shadowMapClearingNode, 1, shadowMapNode, 1);
         renderGraph.addNode(shadowMapNode);
 

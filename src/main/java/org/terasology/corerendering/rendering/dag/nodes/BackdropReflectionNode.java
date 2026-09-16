@@ -20,6 +20,7 @@ import org.terasology.engine.rendering.dag.stateChanges.ReflectedCamera;
 import org.terasology.engine.rendering.dag.stateChanges.SetInputTexture2D;
 import org.terasology.engine.rendering.dag.stateChanges.SetViewportToSizeOf;
 import org.terasology.engine.rendering.opengl.FBO;
+import org.terasology.engine.rendering.world.RenderQueuesHelper;
 import org.terasology.engine.rendering.world.WorldRenderer;
 import org.terasology.engine.utilities.Assets;
 import org.terasology.gestalt.assets.ResourceUrn;
@@ -48,6 +49,7 @@ public class BackdropReflectionNode extends AbstractNode {
     private static final int STACKS = 128;
 
     private BackdropProvider backdropProvider;
+    private RenderQueuesHelper renderQueues;
     private Material skyMaterial;
 
     @SuppressWarnings("FieldCanBeLocal")
@@ -82,6 +84,7 @@ public class BackdropReflectionNode extends AbstractNode {
         super(nodeUri, providingModule, context);
         addOutputFboConnection(1);
         renderer = context.get(WorldRenderer.class);
+        renderQueues = context.get(RenderQueuesHelper.class);
 
         SphereBuilder builder = new SphereBuilder();
         sphereMesh = Assets.generateAsset(builder
@@ -123,6 +126,13 @@ public class BackdropReflectionNode extends AbstractNode {
      */
     @Override
     public void process() {
+        // The reflected sky is only ever sampled by the refractive pass, which draws the water. With no water in sight
+        // nothing reads this buffer, so neither the clear nor the sky sphere is worth drawing. This node has no
+        // condition of its own: it also serves the "sky only" reflection setting, which still needs a reflected sky.
+        if (!renderQueues.hasRefractiveChunks()) {
+            return;
+        }
+
         PerformanceMonitor.startActivity("rendering/" + getUri());
 
         // Common Shader Parameters
