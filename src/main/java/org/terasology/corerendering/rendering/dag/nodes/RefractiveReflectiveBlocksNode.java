@@ -105,10 +105,12 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
     private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn("CoreRendering:chunk");
 
     /**
-     * Texture unit for the projection table. The chunk material takes zero through seven
-     * in the refractive pass, so this one starts above them.
+     * Texture unit for the projection table. This pass is the greediest of the five that curve the
+     * world: it takes zero through eight, the height atlas being the ninth when parallax mapping is
+     * on. Eight — what the other four use — would therefore be taken from under the table the day
+     * someone turns that setting on, and nothing would say so.
      */
-    private static final int SPHERE_TABLE_SLOT = 8;
+    private static final int SPHERE_TABLE_SLOT = 9;
 
     private RenderQueuesHelper renderQueues;
     private WorldRenderer worldRenderer;
