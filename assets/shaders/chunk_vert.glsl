@@ -226,11 +226,16 @@ void main() {
             // were rolling, it reads as rolling however little it moves.
             vec4 normalAndOffset = calcWaterNormalAndOffset(vertexWorldPos.xz, swellWeight);
 
-            waterNormalViewSpace = normalMatrix * normalAndOffset.xyz;
-            vertexViewPos += modelViewMatrix[1] * (normalAndOffset.w + waterOffsetY);
+            // Through the same frame as the opaque normal, or flat water would be lit as though the
+            // world were flat while the ground beside it is not.
+            waterNormalViewSpace = normalMatrix * surfaceFrame * normalAndOffset.xyz;
+            // Along the local up, which on a curved world is the radial direction and not the world
+            // Y axis. surfaceFrame[1] is that up; the two agree under the camera and part company
+            // with distance, which is why the far sea used to sink under its own bed.
+            vertexViewPos.xyz += mat3(modelViewMatrix) * surfaceFrame[1] * (normalAndOffset.w + waterOffsetY);
         }
     #else
-        waterNormalViewSpace = normalMatrix * vec3(0.0, 1.0, 0.0);
+        waterNormalViewSpace = normalMatrix * surfaceFrame * vec3(0.0, 1.0, 0.0);
     #endif
 #endif
 
