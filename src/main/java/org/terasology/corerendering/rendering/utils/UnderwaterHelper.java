@@ -162,7 +162,17 @@ public final class UnderwaterHelper {
         return near + (far - near) * fz;
     }
 
-    /** What chunk_vert does at one vertex: the calm, the swell, and the crossfade between them by depth. */
+    /**
+     * What chunk_vert does at one vertex: the calm, the swell, and the crossfade between them by depth.
+     *
+     * TODO: this ignores the slope the mesher now gives a flowing surface. It already reads nought where the drawn
+     *   surface stands at 0.4, so it has always been a tenth of a block optimistic; a flowing column lowers the
+     *   drawn top by up to three quarters of a block and widens that to the same degree. Adding
+     *   {@code LiquidSurfaceField.cornerHeight} here would close both at once - the arithmetic was deliberately
+     *   left as a static function of plain arrays so this side could call it. Not yet done because every generated
+     *   sea block is a source and so is drawn exactly where this expects it: the gap needs water a player has made
+     *   run, and an eye right on its waterline.
+     */
     private static float cornerHeight(float x, float z, float level, float days) {
         // The level reaches the vertex as a byte, so it is quantised the same way here.
         float quantised = Math.round(Math.min(1.0f, level / WaterDepthField.RANGE) * 127.0f) / 127.0f
