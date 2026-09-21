@@ -18,7 +18,8 @@ void main() {
     float depthOpaque = texture(texSceneOpaqueDepth, v_uv0.xy).r * 2.0 - 1.0;
     vec4 normalBuffer = texture(texSceneOpaqueNormals, v_uv0.xy).rgba;
     vec4 lightBufferOpaque = texture(texSceneOpaqueLightBuffer, v_uv0.xy);
-    vec3 blocklightColor = calcBlocklightColor(lightBufferOpaque.x);
+    // z is the part of x that came from lava, written by the chunk pass and left alone by the light nodes since.
+    vec3 blocklightColor = calcBlocklightColor(lightBufferOpaque.x, lightBufferOpaque.z);
     float sunlightIntensity = lightBufferOpaque.y;
 
     if (!epsilonEqualsOne(depthOpaque)) {

@@ -65,6 +65,9 @@ uniform float clip;
 in float v_sunlight;
 in float v_blocklight;
 in float v_ambientLight;
+// The warm share of the block light here, and the grid normal that says which block this fragment sits on.
+in float v_warmth;
+flat in vec3 v_gridNormal;
 in vec4 v_colorOffset;
 
 //inverse is not available in GLSL 1.20, so calculate it manually
@@ -201,12 +204,23 @@ void main() {
     // ...and finally the occlusion value
     float occlusionValue = expOccValue(v_ambientLight);
 
+#if defined (FLICKERING_LIGHT)
+    // Torches and glowbells keep the frame wide offset to the bit. Only the lava share of the light here is
+    // swapped for the beat this particular block is on, so at v_warmth of zero nothing about the old behaviour
+    // changes.
+    float flickerOffset = mix(flickeringLightOffset,
+                              lavaFlickerOffset(vertexWorldPos, v_gridNormal),
+                              v_warmth);
+#endif
+
     float blocklightColorBrightness = calcBlocklightColorBrightness(blocklightValue
     #if defined (FLICKERING_LIGHT)
-            , flickeringLightOffset
+            , flickerOffset
     #endif
     );
-    vec3 blocklightColorValue = calcBlocklightColor(blocklightColorBrightness);
+    // The lava part of that brightness, as an absolute quantity rather than a share: the tint is additive.
+    float warmBrightness = blocklightColorBrightness * v_warmth;
+    vec3 blocklightColorValue = calcBlocklightColor(blocklightColorBrightness, warmBrightness);
 
 #if defined (FEATURE_REFRACTIVE_PASS)
     vec3 daylightColorValue;
@@ -273,7 +287,10 @@ void main() {
     // Apply the final lighting mix
     color.xyz *= combinedLightValue * occlusionValue;
 #else
-    outLight.rgba = vec4(blocklightColorBrightness, daylightValue, 0.0, 0.0);
+    // z carries the lava part of the brightness through to the deferred lighting pass, which is the only channel
+    // of this buffer nothing reads. The light nodes in between blend additively over it, so lightGeometryPass
+    // writes a zero there to leave it alone.
+    outLight.rgba = vec4(blocklightColorBrightness, daylightValue, warmBrightness, 0.0);
 #endif
 
 #if defined (FEATURE_REFRACTIVE_PASS) || defined (FEATURE_USE_FORWARD_LIGHTING)

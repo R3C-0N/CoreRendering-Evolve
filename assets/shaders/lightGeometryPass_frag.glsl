@@ -166,10 +166,13 @@ void main() {
 #endif
 
 // TODO A 3D wizard should take a look at this. Configurable for the moment to make better comparisons possible.
+// Blue carries the lava share the chunk pass wrote, and must come through this blend untouched. The blend is
+// GL_ONE, GL_ONE_MINUS_SRC_COLOR, so dst = src + dst * (1 - src): a source of zero leaves dst alone. Nothing ever
+// read the blue of a deferred light anyway - lightBufferPass takes x, y and a, and throws the rest away.
 #if defined (CLAMP_LIGHTING)
-    outLight.rgba = clamp(vec4(color.r, color.g, color.b, specular), 0.0, 1.0);
+    outLight.rgba = clamp(vec4(color.r, color.g, 0.0, specular), 0.0, 1.0);
 #else
-    outLight.rgba = vec4(color.r, color.g, color.b, specular);
+    outLight.rgba = vec4(color.r, color.g, 0.0, specular);
 #endif
 
 }

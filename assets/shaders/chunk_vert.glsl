@@ -135,6 +135,14 @@ out vec2 v_uv0;
 out float v_sunlight;
 out float v_blocklight;
 out float v_ambientLight;
+// The warm share of the block light, nought to one. Zero everywhere no lava shines, which is what keeps every
+// torch lit surface bit identical to what it was before lava had a colour of its own.
+out float v_warmth;
+// The raw grid normal, which is not the one the sphere turns: the block a fragment belongs to is a fact about the
+// grid, and vertexWorldPos below is deliberately kept flat for the same reason. worldSpaceNormal is no use here,
+// it only exists under NORMAL_MAPPING and it has been through the surface frame. Flat because a face has one
+// normal, so interpolating it would only cost and add noise at the edges.
+flat out vec3 v_gridNormal;
 flat out int isUpside;
 flat out int v_blockHint;
 out vec4 v_colorOffset;
@@ -156,12 +164,17 @@ layout (location = 8) in vec4 colorOffset;
 // nought on anything that is not a water surface.
 layout (location = 9) in float in_waterDepth;
 
+// How much of the block light at this vertex comes from lava, nought to a hundred and twenty seven.
+layout (location = 10) in float in_warmth;
+
 void main() {
 
     v_uv0 = in_uv0;
     v_sunlight = in_sunlight;
     v_blocklight = in_blocklight;
     v_ambientLight = in_ambientlight;
+    v_warmth = in_warmth / 127.0;
+    v_gridNormal = in_normal;
     v_blockHint = in_flags;
     v_colorOffset = colorOffset;
     // On a flat world this is exactly modelViewMatrix * vec4(in_vert, 1.0); on a curved one the
