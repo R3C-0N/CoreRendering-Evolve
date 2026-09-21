@@ -185,7 +185,9 @@ void main() {
 
     if (in_frames > 0) {
         float globalFrameIndex = floor(time * 6 *60*60*24/48); // 6Hz at default world time scale
-        float frameIndex = mod(globalFrameIndex, in_frames);
+        // in_frames is one less than the count, so that zero can mean "not animated"; the modulus wants the count
+        // itself, or the last frame of every animated tile is never shown and the loop jolts once a cycle.
+        float frameIndex = mod(globalFrameIndex, in_frames + 1.0);
         float frame_x = in_uv0.x + (frameIndex * TEXTURE_OFFSET);
         v_uv0.y = in_uv0.y + floor(frame_x) * TEXTURE_OFFSET;
         v_uv0.x = mod(frame_x, 1);
