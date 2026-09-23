@@ -96,6 +96,12 @@ void main() {
         shadowTerm = (shadowMapTexPos.z + bias > pcfDepth) ? 0.0 : 1.0;
     #endif
 
+    // Past the edge of the map nothing is known, and the lookup clamps to whatever the edge texel holds: lit. The map
+    // is a few hundred blocks wide, and the distant terrain is drawn well beyond it.
+    if (any(lessThan(shadowMapTexPos.xy, vec2(0.0))) || any(greaterThan(shadowMapTexPos.xy, vec2(1.0)))) {
+        shadowTerm = 1.0;
+    }
+
     #if defined (CLOUD_SHADOWS) && !defined (VOLUMETRIC_LIGHTING)
         // TODO: Add shader parameters for this...
         // Get the preconfigured value from the randomized texture, sampling a value from it to determine how much cloud shadow there will be.
