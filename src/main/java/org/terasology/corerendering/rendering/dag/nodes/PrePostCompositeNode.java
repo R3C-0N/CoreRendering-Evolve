@@ -21,6 +21,7 @@ import org.terasology.engine.rendering.dag.stateChanges.EnableMaterial;
 import org.terasology.engine.rendering.dag.stateChanges.SetInputTextureFromFbo;
 import org.terasology.engine.rendering.opengl.FBO;
 import org.terasology.engine.rendering.opengl.fbms.DisplayResolutionDependentFbo;
+import org.terasology.engine.rendering.world.DistantReach;
 import org.terasology.engine.rendering.world.WorldRenderer;
 import org.terasology.engine.utilities.Assets;
 import org.terasology.engine.world.WorldProvider;
@@ -118,8 +119,16 @@ public class PrePostCompositeNode extends AbstractNode implements PropertyChange
 
     private Mesh renderQuad;
 
+    // Where the veil over the edge of the loaded ground starts, in blocks before that edge, when a distant terrain is
+    // drawn beyond it: two chunks, so the edge is hazed and the distance is not.
+    @SuppressWarnings("FieldCanBeLocal")
+    @Range(min = 0.0f, max = 256.0f)
+    private float distantVeil = 64.0f;
+    private final Context nodeContext;
+
     public PrePostCompositeNode(String nodeUri, Name providingModule, Context context) {
         super(nodeUri, providingModule, context);
+        nodeContext = context;
 
         worldRenderer = context.get(WorldRenderer.class);
         activeCamera = worldRenderer.getActiveCamera();
@@ -218,7 +227,17 @@ public class PrePostCompositeNode extends AbstractNode implements PropertyChange
 
         // Shader Parameters
 
-        prePostMaterial.setFloat("viewingDistance", renderingConfig.getViewDistance().getChunkDistance().x() * 8.0f, true);
+        // The haze is set on the view distance and saturates a little past it, which drowns anything drawn further out.
+        // A world with a distant terrain says how far it draws: the haze stretches to there, and starts a couple of
+        // chunks before the loaded ground ends, as a veil over the edge rather than a wall at it.
+        float viewingDistance = renderingConfig.getViewDistance().getChunkDistance().x() * 8.0f;
+        float threshold = hazeThreshold;
+        DistantReach distant = nodeContext.get(DistantReach.class);
+        if (distant != null && distant.reach() > viewingDistance) {
+            viewingDistance = distant.reach();
+            threshold = Math.max(0.0f, Math.min(0.95f, (distant.frontier() - distantVeil) / viewingDistance));
+        }
+        prePostMaterial.setFloat("viewingDistance", viewingDistance, true);
         prePostMaterial.setFloat3("cameraParameters", activeCamera.getzNear(), activeCamera.getzFar(), 0.0f, true);
 
         if (localReflectionsAreEnabled) {
@@ -238,7 +257,7 @@ public class PrePostCompositeNode extends AbstractNode implements PropertyChange
         }
 
         if (hazeIsEnabled) {
-            prePostMaterial.setFloat4("skyInscatteringSettingsFrag", 0, hazeStrength, hazeLength, hazeThreshold, true);
+            prePostMaterial.setFloat4("skyInscatteringSettingsFrag", 0, hazeStrength, hazeLength, threshold, true);
         }
 
         boolean underwater = UnderwaterHelper.isUnderwater(activeCamera.getPosition(), worldProvider, renderingConfig);
