@@ -62,6 +62,13 @@ uniform sampler2D textureEffects;
 
 uniform float clip;
 
+// The distant terrain draws with this very shader, so that it is placed and lit as the terrain is. Its quads are
+// whole columns of the world, a tile stretched over several blocks, so the atlas is tiled once per block here from
+// the flat position; and it steps aside wherever the game already draws the terrain, read from a texture with one
+// texel per column of chunks of the net. Zero for every other pass, which never sets it.
+uniform int distantTerrain;
+uniform sampler2D distantHole;
+
 in float v_sunlight;
 in float v_blocklight;
 in float v_ambientLight;
@@ -90,6 +97,18 @@ void main() {
 #endif
 
     vec2 texCoord = v_uv0.xy;
+    vec2 distantPlane = vec2(0.0);
+    if (distantTerrain == 1) {
+        if (texelFetch(distantHole, ivec2(floor(vertexWorldPos.xz / 32.0)), 0).r > 0.5) {
+            discard;
+        }
+        // Along the face the fragment is on: the ground for a top, the height and the run of the wall for a side,
+        // upside down so that a tile stands the right way up.
+        distantPlane = abs(v_gridNormal.y) > 0.5 ? vertexWorldPos.xz
+                : (abs(v_gridNormal.x) > 0.5 ? vec2(vertexWorldPos.z, -vertexWorldPos.y)
+                                              : vec2(vertexWorldPos.x, -vertexWorldPos.y));
+        texCoord = v_uv0.xy + fract(distantPlane) * TEXTURE_OFFSET;
+    }
 
     vec3 normalizedViewPos = -normalize(vertexViewPos.xyz);
     vec2 projectedPos = projectVertexToTexCoord(vertexProjPos);
@@ -171,7 +190,14 @@ void main() {
     vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
 
 #if !defined (FEATURE_REFRACTIVE_PASS)
-    color = texture(textureAtlas, texCoord.xy);
+    if (distantTerrain == 1) {
+        // The gradient of the continuous position, not of the wrapped one: fract jumps at every block edge and
+        // would send the sampler to its coarsest level along each seam.
+        color = textureGrad(textureAtlas, texCoord.xy, dFdx(distantPlane) * TEXTURE_OFFSET,
+                            dFdy(distantPlane) * TEXTURE_OFFSET);
+    } else {
+        color = texture(textureAtlas, texCoord.xy);
+    }
 
     #if defined FEATURE_ALPHA_REJECT
         if (color.a < 0.1) {
