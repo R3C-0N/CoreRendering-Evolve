@@ -99,14 +99,16 @@ void main() {
     vec2 texCoord = v_uv0.xy;
     vec2 distantPlane = vec2(0.0);
     if (distantTerrain == 1) {
-        if (texelFetch(distantHole, ivec2(floor(vertexWorldPos.xz / 32.0)), 0).r > 0.5) {
+        // A block is centred on its coordinates: half a block on, and a block's faces fall on whole numbers.
+        vec3 gridPos = vertexWorldPos + 0.5;
+        if (texelFetch(distantHole, ivec2(floor(gridPos.xz / 32.0)), 0).r > 0.5) {
             discard;
         }
         // Along the face the fragment is on: the ground for a top, the height and the run of the wall for a side,
         // upside down so that a tile stands the right way up.
-        distantPlane = abs(v_gridNormal.y) > 0.5 ? vertexWorldPos.xz
-                : (abs(v_gridNormal.x) > 0.5 ? vec2(vertexWorldPos.z, -vertexWorldPos.y)
-                                              : vec2(vertexWorldPos.x, -vertexWorldPos.y));
+        distantPlane = abs(v_gridNormal.y) > 0.5 ? gridPos.xz
+                : (abs(v_gridNormal.x) > 0.5 ? vec2(gridPos.z, -gridPos.y)
+                                              : vec2(gridPos.x, -gridPos.y));
         texCoord = v_uv0.xy + fract(distantPlane) * TEXTURE_OFFSET;
     }
 
@@ -122,7 +124,9 @@ void main() {
     // both view and UV coordinates to screen-space coordinated. The specific relationship between
     // screen coordinates and view coordinates is irrelevant.
     mat2x3 screenToView = mat2x3(dFdx(vertexViewPos.xyz), dFdy(vertexViewPos.xyz));
-    mat2   screenToUv   = mat2  (dFdx(v_uv0.xy), dFdy(v_uv0.xy)) / TEXTURE_OFFSET;
+    // A distant quad has one uv at every corner, the tile's: its frame is the continuous position on the face.
+    mat2   screenToUv   = distantTerrain == 1 ? mat2(dFdx(distantPlane), dFdy(distantPlane))
+                                              : mat2(dFdx(v_uv0.xy), dFdy(v_uv0.xy)) / TEXTURE_OFFSET;
     mat2 uvToScreen = inverse2(screenToUv);
     mat2x3 uvToView = screenToView * uvToScreen;
 

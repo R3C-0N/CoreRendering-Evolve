@@ -11,6 +11,11 @@ uniform mat4 projectionMatrix;
 // why it has to be set explicitly by the node: it does not go through ChunkMesh.updateMaterial.
 uniform vec3 chunkPositionWorld;
 
+// Where the vertex is on the grid, flat, for the distant terrain to step aside under the loaded chunks as it does in
+// the chunk shader: a block is centred on its coordinates, hence the half.
+out vec2 v_gridXZ;
+
 void main() {
 	gl_Position = projectionMatrix * sphereViewPos(in_vert, chunkPositionWorld, modelViewMatrix);
+	v_gridXZ = in_vert.xz + chunkPositionWorld.xz + 0.5;
 }

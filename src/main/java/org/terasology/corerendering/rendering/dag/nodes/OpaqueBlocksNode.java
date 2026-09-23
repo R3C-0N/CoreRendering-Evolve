@@ -28,6 +28,7 @@ import org.terasology.engine.rendering.dag.stateChanges.SetInputTexture2D;
 import org.terasology.engine.rendering.dag.stateChanges.SetWireframe;
 import org.terasology.engine.rendering.primitives.ChunkMesh;
 import org.terasology.engine.rendering.world.RenderQueuesHelper;
+import org.terasology.engine.rendering.world.DistantGeometry;
 import org.terasology.engine.rendering.world.WorldRenderer;
 import org.terasology.engine.world.WorldProvider;
 import org.terasology.engine.world.chunks.RenderableChunk;
@@ -56,6 +57,7 @@ public class OpaqueBlocksNode extends AbstractNode implements WireframeCapable, 
 
     private WorldRenderer worldRenderer;
     private RenderQueuesHelper renderQueues;
+    private final Context nodeContext;
     private RenderingConfig renderingConfig;
     private WorldProvider worldProvider;
 
@@ -84,6 +86,7 @@ public class OpaqueBlocksNode extends AbstractNode implements WireframeCapable, 
 
         renderQueues = context.get(RenderQueuesHelper.class);
         worldProvider = context.get(WorldProvider.class);
+        nodeContext = context;
         addOutputBufferPairConnection(1);
     }
 
@@ -223,6 +226,13 @@ public class OpaqueBlocksNode extends AbstractNode implements WireframeCapable, 
             } else {
                 numberOfChunksThatAreNotReadyYet++;
             }
+        }
+
+        // What the world draws past its chunks, with everything above still set: asked every frame, since
+        // the graph is built before the systems that publish it start.
+        DistantGeometry distant = nodeContext.get(DistantGeometry.class);
+        if (distant != null) {
+            numberOfRenderedTriangles += distant.render(OPAQUE, chunkMaterial, activeCamera, false);
         }
 
         worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);

@@ -24,6 +24,7 @@ import org.terasology.engine.rendering.sphere.SphereProjection;
 import org.terasology.engine.rendering.dag.stateChanges.SetFacesToCull;
 import org.terasology.engine.rendering.dag.stateChanges.SetViewportToSizeOf;
 import org.terasology.engine.rendering.opengl.FBO;
+import org.terasology.engine.rendering.world.DistantGeometry;
 import org.terasology.engine.rendering.world.RenderQueuesHelper;
 import org.terasology.engine.rendering.world.RenderableWorld;
 import org.terasology.engine.world.chunks.RenderableChunk;
@@ -73,6 +74,7 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
     private BackdropProvider backdropProvider;
     private RenderingConfig renderingConfig;
     private RenderQueuesHelper renderQueues;
+    private final Context nodeContext;
 
     private Camera activeCamera;
     private double texelSize;
@@ -91,6 +93,7 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
         shadowMapMaterial = getMaterial(SHADOW_MAP_MATERIAL_URN);
 
         renderQueues = context.get(RenderQueuesHelper.class);
+        nodeContext = context;
         backdropProvider = context.get(BackdropProvider.class);
         renderingConfig = context.get(Config.class).getRendering();
         addDesiredStateChange(new SetFacesToCull(GL_FRONT));
@@ -212,6 +215,12 @@ public class ShadowMapNode extends ConditionDependentNode implements PropertyCha
                 } else {
                     numberOfChunksThatAreNotReadyYet++;
                 }
+            }
+
+            // The distance casts its shadow as the chunks do, where the map reaches.
+            DistantGeometry distant = nodeContext.get(DistantGeometry.class);
+            if (distant != null) {
+                numberOfRenderedTriangles += distant.render(OPAQUE, shadowMapMaterial, shadowMapCamera, true);
             }
 
             worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);

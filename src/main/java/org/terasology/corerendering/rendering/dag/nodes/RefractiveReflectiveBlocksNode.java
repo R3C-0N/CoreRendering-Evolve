@@ -30,6 +30,7 @@ import org.terasology.engine.rendering.opengl.fbms.DisplayResolutionDependentFbo
 import org.terasology.engine.rendering.primitives.ChunkMesh;
 import org.terasology.engine.rendering.primitives.WaterDepthField;
 import org.terasology.engine.rendering.world.RenderQueuesHelper;
+import org.terasology.engine.rendering.world.DistantGeometry;
 import org.terasology.engine.rendering.world.WorldRenderer;
 import org.terasology.engine.world.WorldProvider;
 import org.terasology.engine.world.chunks.RenderableChunk;
@@ -113,6 +114,7 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
     private static final int SPHERE_TABLE_SLOT = 9;
 
     private RenderQueuesHelper renderQueues;
+    private final Context nodeContext;
     private WorldRenderer worldRenderer;
     private BackdropProvider backdropProvider;
     private RenderingConfig renderingConfig;
@@ -174,6 +176,7 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
                                                                   waveSizeFalloff, waveSpeed, waveSpeedFalloff, waterOffsetY);
 
         renderQueues = context.get(RenderQueuesHelper.class);
+        nodeContext = context;
         backdropProvider = context.get(BackdropProvider.class);
         worldProvider = context.get(WorldProvider.class);
 
@@ -341,6 +344,12 @@ public class RefractiveReflectiveBlocksNode extends AbstractNode implements Prop
             } else {
                 numberOfChunksThatAreNotReadyYet++;
             }
+        }
+
+        // The distant sea, through the same variant, textures and uniforms as the near one.
+        DistantGeometry distant = nodeContext.get(DistantGeometry.class);
+        if (distant != null) {
+            numberOfRenderedTriangles += distant.render(REFRACTIVE, chunkMaterial, activeCamera, false);
         }
 
         worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);
